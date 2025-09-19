@@ -1,10 +1,9 @@
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
-import undetected_chromedriver as uc
+from selenium.common.exceptions import WebDriverException
+from selenium.common.exceptions import ElementNotVisibleException
 import time
 import random
 import os
@@ -30,32 +29,70 @@ def f_config( path: str, prf: str ):  # path: duong dan thu muc profile chrome, 
         print("No path profile exists.");
         return;
 
-    option = uc.ChromeOptions();
-    option.add_argument(f"--user-data-dir={path}");
-    option.add_argument(f"--profile-directory={prf}");
+    # Config option
+    options = webdriver.ChromeOptions();
+    options.add_argument("--headless=new");
 
-    driver = uc.Chrome( version_main= 127, options=option);
+    # Initial driver
     try:
-        print("Đang khởi động Chrome với profile thật...");
-        # Truy cập một trang đòi hỏi đăng nhập, ví dụ như Gmail hoặc Google Drive
-        # Bạn sẽ thấy mình đã được đăng nhập sẵn!
-        driver.get("https://tuoitre.vn");
-        
-        print("Truy cập thành công! Trình duyệt đang được điều khiển tự động.");
-        time.sleep(5) # Giữ trình duyệt mở để bạn kiểm tra
-    finally:
-        driver.quit()
+        driver = webdriver.Chrome(options=options);
+    except WebDriverException as e:
+        print("Initial WebDriver error!");
+        return;
 
-def f_get_data():
-    print("Get data!");
+    # Return driver
+    return driver;
+
+def f_get_data(driver: webdriver.Chrome):
+    if driver is None:
+        return;
+    
+    try:
+        #driver.get("https://cafef.vn/du-lieu/hose/hpg-cong-ty-co-phan-tap-doan-hoa-phat.chn");
+        driver.get("https://finance.vietstock.vn/HPG-ctcp-tap-doan-hoa-phat.htm");
+        driver.set_window_size(1920, 1080);
+        title = driver.title;
+        print(title);
+        
+        # Gia tham chieu
+        element = driver.find_element(by=By.ID, value="openprice");
+        print("Gia tham chieu: ",element.text);
+    
+        # Gia cao nhat
+        element = driver.find_element(by=By.ID, value="highestprice");
+        print("Gia cao nhat: ", element.text);
+    
+        # Gia thap nhat
+        element = driver.find_element(by=By.ID, value="lowestprice");
+        print("Gia thap nhat: ", element.text);
+
+        # khoi ngoai
+        # Khoi ngoai mua
+        element = driver.find_element(by=By.ID, value="foreignBuy");
+        print("Khoi ngoai mua: ", element.text);
+    
+        # Khoi ngoai ban
+        element = driver.find_element(by=By.ID, value="foregin__sellvol");
+        print("Khoi ngoai ban: ", element.text);
+    
+        # Khoi ngoai so huu %
+        element = driver.find_element(by=By.ID, value="ownedratio");
+        print("% khoi ngoai so huu: ", element.text);
+    except ElementNotVisibleException as e:
+        print("Exception element", format(e));
+    finally:
+        driver.quit();
 
 def main():
-    path = 'C:\\Users\\admin\\AppData\\Local\\Google\\Chrome\\User Data'
-    prf = 'Profile 1'
+    # chrome://version/
+    path = 'C:\\Users\\admin\\AppData\\Local\\Google\\Chrome\\User Data';
+    prf = 'Profile 2';
+    
+    # Create driver
+    driver = f_config(path= path, prf= prf);
 
-    f_config(path= path, prf= prf)
-
-    # f_get_data()
+    # Get data
+    f_get_data( driver );
 
 if __name__ == "__main__":
     main()
