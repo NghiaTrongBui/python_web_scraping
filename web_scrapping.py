@@ -1,30 +1,28 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import WebDriverException
 from selenium.common.exceptions import ElementNotVisibleException
-import time
+from datetime import datetime
 import random
 import os
+import csv
 
 def f_random(fact: float):
-    f_min = fact * 0
-    f_max = fact * 1
+    f_min = fact * 0;
+    f_max = fact * 1;
 
     # Calculate float number return
-    f_num = random.uniform(f_min, f_max)
+    f_num = random.uniform(f_min, f_max);
 
     # return float number
-    return f_num
-
+    return f_num;
 
 def f_config( path: str, prf: str ):  # path: duong dan thu muc profile chrome, prf: profile chrome
     if not os.path.exists(path=path):
         print("No path profile exists.");
         return;
     
-    file = "\\".join([path, prf]);
+    file = os.path.join(path, prf);
     if not os.path.isdir(s=file):
         print("No path profile exists.");
         return;
@@ -48,51 +46,109 @@ def f_get_data(driver: webdriver.Chrome):
         return;
     
     try:
-        #driver.get("https://cafef.vn/du-lieu/hose/hpg-cong-ty-co-phan-tap-doan-hoa-phat.chn");
         driver.get("https://finance.vietstock.vn/HPG-ctcp-tap-doan-hoa-phat.htm");
         driver.set_window_size(1920, 1080);
-        title = driver.title;
-        print(title);
-        
+    
+        # Khoi ngoai ban
+        table = driver.find_element(by=By.ID, value="stock-transactions");
+        rows = table.find_elements(by=By.XPATH, value=".//tbody/tr");
+
+        row = rows[0];
+        # Ngày
+        cell = row.find_elements( By.TAG_NAME, "td" )[0];
+        date = datetime.strptime(cell.text, "%d/%m/%Y").strftime("%Y%m%d");     # Format date(DD/mm/YYYY => YYYYmmDD)
+
         # Gia tham chieu
         element = driver.find_element(by=By.ID, value="openprice");
-        print("Gia tham chieu: ",element.text);
+        o_price = element.text.replace(",","");
     
         # Gia cao nhat
         element = driver.find_element(by=By.ID, value="highestprice");
-        print("Gia cao nhat: ", element.text);
-    
+        h_price = element.text.replace(",","");
+
         # Gia thap nhat
         element = driver.find_element(by=By.ID, value="lowestprice");
-        print("Gia thap nhat: ", element.text);
+        l_price = element.text.replace(",","");
 
-        # khoi ngoai
-        # Khoi ngoai mua
-        element = driver.find_element(by=By.ID, value="foreignBuy");
-        print("Khoi ngoai mua: ", element.text);
-    
-        # Khoi ngoai ban
-        element = driver.find_element(by=By.ID, value="foregin__sellvol");
-        print("Khoi ngoai ban: ", element.text);
+        # Khoi luong
+        cell = row.find_elements( By.TAG_NAME, "td" )[3];    
+        kl = cell.text.replace(",","");
+
+        # Binh quan mua(BQ mua)   
+        cell = row.find_elements( By.TAG_NAME, "td" )[4];
+        m_bq = cell.text.replace(",","");
+
+        # Binh quan bán(BQ bán)         
+        cell = row.find_elements( By.TAG_NAME, "td" )[5];  
+        b_bq = cell.text.replace(",","");
+
+        # NN mua      
+        cell = row.find_elements( By.TAG_NAME, "td" )[6];
+        m_nn = cell.text.replace(",","");
+
+        # NN bán
+        cell = row.find_elements( By.TAG_NAME, "td" )[7];
+        b_nn = cell.text.replace(",","");
     
         # Khoi ngoai so huu %
         element = driver.find_element(by=By.ID, value="ownedratio");
-        print("% khoi ngoai so huu: ", element.text);
+        p_nn = element.text;
+
+        item = { 
+                    "Ngày" : date, 
+                    "Giá mở cửa": o_price, 
+                    "Giá cao nhất": h_price, 
+                    "Giá thấp nhất": l_price, 
+                    "Khối lượng": kl, 
+                    "BQ mua": m_bq, 
+                    "BQ Bán": b_bq, 
+                    "NN mua": m_nn, 
+                    "NN bán": b_nn, 
+                    "% NN sở hữu":p_nn 
+                };
+
+        items = list();
+        items.append(item);
+    
+        return items;
     except ElementNotVisibleException as e:
         print("Exception element", format(e));
     finally:
         driver.quit();
 
+def f_write_data(path: str, file: str, data: list):
+    if not os.path.exists(path):
+        print("Path không tồn tại! ");
+        return;
+
+    csv_header = ["Ngày", "Giá mở cửa", "Giá cao nhất", "Giá thấp nhất", "Khối lượng", "BQ mua", "BQ Bán", "NN mua", "NN bán", "% NN sở hữu"];
+    fpath = os.path.join(path, file);
+    if not os.path.exists(fpath):
+        with open(fpath, 'w', newline='', encoding='utf-8-sig') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=csv_header);
+            writer.writeheader();
+            writer.writerows(data);
+    else:
+        with open(fpath, 'a', newline='', encoding='utf-8-sig') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=csv_header);
+            writer.writerows(data);
+    
 def main():
     # chrome://version/
-    path = 'C:\\Users\\admin\\AppData\\Local\\Google\\Chrome\\User Data';
-    prf = 'Profile 2';
+    chr_path = r"C:\Users\admin\AppData\Local\Google\Chrome\User Data";
+    chr_prf = "Profile 2";
+
+    wrt_path = r"D:\Github\2. Python";
+    wrt_file = "HPG.csv";
     
     # Create driver
-    driver = f_config(path= path, prf= prf);
+    driver = f_config(path= chr_path, prf= chr_prf);
 
     # Get data
-    f_get_data( driver );
+    data = f_get_data( driver=driver );
+
+    # Write data
+    f_write_data(path=wrt_path, file=wrt_file, data= data);
 
 if __name__ == "__main__":
-    main()
+    main();
