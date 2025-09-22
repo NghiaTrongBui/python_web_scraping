@@ -3,6 +3,8 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
 from selenium.common.exceptions import ElementNotVisibleException
 from datetime import datetime
+from pathlib import Path
+import pandas as pd
 import random
 import os
 import csv
@@ -41,14 +43,22 @@ def f_config( path: str, prf: str ):  # path: duong dan thu muc profile chrome, 
     # Return driver
     return driver;
 
-def f_get_data(driver: webdriver.Chrome):
+def f_get_data(driver: webdriver.Chrome, mck:str, url: str, lpath: str):
     if driver is None:
         return;
     
     try:
-        driver.get("https://finance.vietstock.vn/HPG-ctcp-tap-doan-hoa-phat.htm");
+        driver.get(url);
         driver.set_window_size(1920, 1080);
-    
+
+        title = driver.title;
+        err_page = ["404", "Not Found", "Page not found", "không tìm thấy"];
+        is_err_page = any(keyword.lower() in title.lower() for keyword in err_page);
+
+        # neu co loi xay ra ghi log file txt
+        if is_err_page:
+            f_write_log(path=lpath,name="error", data="Page not found");
+
         # Khoi ngoai ban
         table = driver.find_element(by=By.ID, value="stock-transactions");
         rows = table.find_elements(by=By.XPATH, value=".//tbody/tr");
@@ -116,7 +126,7 @@ def f_get_data(driver: webdriver.Chrome):
     finally:
         driver.quit();
 
-def f_write_data(path: str, file: str, data: list):
+def f_write_data(path: str, file: str, mck: str, data: list):
     if not os.path.exists(path):
         print("Path không tồn tại! ");
         return;
@@ -124,31 +134,68 @@ def f_write_data(path: str, file: str, data: list):
     csv_header = ["Ngày", "Giá mở cửa", "Giá cao nhất", "Giá thấp nhất", "Khối lượng", "BQ mua", "BQ Bán", "NN mua", "NN bán", "% NN sở hữu"];
     fpath = os.path.join(path, file);
     if not os.path.exists(fpath):
-        with open(fpath, 'w', newline='', encoding='utf-8-sig') as csvfile:
+        with open(fpath, "w", newline="", encoding="utf-8-sig") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=csv_header);
             writer.writeheader();
             writer.writerows(data);
     else:
-        with open(fpath, 'a', newline='', encoding='utf-8-sig') as csvfile:
+        with open(fpath, "a", newline="", encoding="utf-8-sig") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=csv_header);
             writer.writerows(data);
+
+def f_write_log(path: str, name: str, data: str):
+    if not os.path.exists(path=path):
+        return;
+    
+    # Define file name
+    fname = name + "_log_" + datetime.today().strftime("%Y%m%d") + ".txt";
+    fpath = os.path.join(path, fname);
+
+    # set time if error occur
+    err_time = datetime.today().strftime("%H:%M:%S");
+    data = f"[{err_time}] "  + data;
+
+    if not os.path.exists(fpath):
+        with open(fpath, "w", encoding= "utf-8") as file:
+            file.write(data);
+    else:
+        with open(fpath, "a", encoding= "utf-8") as file:
+            file.write(data);
+
+def f_read_excel(fpath: str, sheet: str):
+    df = pd.read_excel(fpath, sheet_name=sheet, header=0 );
+    df.rename(columns={"MCK": "mck", "LINK": "url"}, inplace=True);
+    dlist = df.to_dict("records");
+
+    list = [];
+    for item in dlist:
+        list.append({ "mck": item.get("mck"), "url": item.get("url")});
+
+    return list;
     
 def main():
+    sfolder = Path(__file__).parent
+
+    e_path = os.path.join(sfolder, "URL.xlsx");
+    link = f_read_excel(fpath=e_path, sheet="MCK");
+
     # chrome://version/
     chr_path = r"C:\Users\admin\AppData\Local\Google\Chrome\User Data";
     chr_prf = "Profile 2";
 
+    # Write file
     wrt_path = r"D:\Github\2. Python";
-    wrt_file = "HPG.csv";
-    
-    # Create driver
-    driver = f_config(path= chr_path, prf= chr_prf);
 
-    # Get data
-    data = f_get_data( driver=driver );
+    for item in link:
+        wrt_file = item["mck"] + ".csv";
+        # Create driver
+        driver = f_config(path= chr_path, prf= chr_prf);
 
-    # Write data
-    f_write_data(path=wrt_path, file=wrt_file, data= data);
+        # Get data
+        data = f_get_data( driver=driver, mck= item["mck"], url=item["url"], lpath= wrt_path );
+
+        # Write data
+        f_write_data(path=wrt_path, file=wrt_file, mck= item["mck"], data= data);
 
 if __name__ == "__main__":
     main();
