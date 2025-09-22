@@ -57,7 +57,7 @@ def f_get_data(driver: webdriver.Chrome, mck:str, url: str, lpath: str):
 
         # neu co loi xay ra ghi log file txt
         if is_err_page:
-            f_write_log(path=lpath,name="error", data="Page not found");
+            f_write_log(path=lpath, name="error", data="Page not found");
 
         # Khoi ngoai ban
         table = driver.find_element(by=By.ID, value="stock-transactions");
@@ -162,40 +162,84 @@ def f_write_log(path: str, name: str, data: str):
         with open(fpath, "a", encoding= "utf-8") as file:
             file.write(data);
 
-def f_read_excel(fpath: str, sheet: str):
-    df = pd.read_excel(fpath, sheet_name=sheet, header=0 );
-    df.rename(columns={"MCK": "mck", "LINK": "url"}, inplace=True);
+def f_read_excel(path: str, sheet: str):
+    df = pd.read_excel(path, sheet_name=sheet, header=0 );
+    df.rename(columns={"STATUS" : "status", "MCK": "mck", "LINK": "url"}, inplace=True);
     dlist = df.to_dict("records");
 
     list = [];
     for item in dlist:
-        list.append({ "mck": item.get("mck"), "url": item.get("url")});
+        if item.get("status") == 0:
+            list.append({ "mck": item.get("mck"), "url": item.get("url")});
+        else: 
+            continue;
 
     return list;
+
+def f_update_excel(path: str, sheet: str, mck: str):
+    print(mck);
+    df = pd.read_excel(path, sheet_name=sheet);
+    df.loc[df["MCK"] == mck , "STATUS"] = 1;
+    df.to_excel(path, index= False);
+
+def f_check_excel(fpath: str, sheet: str):
+    df = pd.read_excel(fpath, sheet_name=sheet);
+
+    # Count so dong co trong excel
+    cnt_row = df.shape[0];
+
+    # Count so dong thoa dk
+    chk_dk = df["STATUS"] == 1;
+    cnt_dk = chk_dk.sum();
+
+    if cnt_dk == cnt_row:
+        df["STATUS"] = 0;
+
+        # Save file
+        df.to_excel(fpath, index=False);
     
 def main():
+    """
+        Đang có 1 lỗi nghiêm trọng update 1 sheet file excel => có thể xóa tất cả các sheet data còn lại
+        sử dụng lệnh: ctr + shift + P => Focus on Outline View
+    """
+    # chrome://version/
+    chr_path = r"C:\Users\MY GEAR\AppData\Local\Google\Chrome\User Data";
+    chr_prf = "Profile 1";
+
+    # Write file csv
+    wrt_path = r"E:\3. SCRAPPING_MCK";
+    l_path = wrt_path + r'\log';
+
+    #  Get python current path
     sfolder = Path(__file__).parent
 
+    # Set full path name excel
     e_path = os.path.join(sfolder, "URL.xlsx");
-    link = f_read_excel(fpath=e_path, sheet="MCK");
 
-    # chrome://version/
-    chr_path = r"C:\Users\admin\AppData\Local\Google\Chrome\User Data";
-    chr_prf = "Profile 2";
+    # Update file truoc khi chay ngay hom nay
+    f_check_excel(fpath=e_path, sheet="MCK");
 
-    # Write file
-    wrt_path = r"D:\Github\2. Python";
+    link = f_read_excel(path=e_path, sheet="MCK");
 
-    for item in link:
-        wrt_file = item["mck"] + ".csv";
-        # Create driver
-        driver = f_config(path= chr_path, prf= chr_prf);
+    # Check not link
+    if link == []:
+        f_write_log(path=l_path, name="error", data="Excel no link!");
+        return;
 
-        # Get data
-        data = f_get_data( driver=driver, mck= item["mck"], url=item["url"], lpath= wrt_path );
+    # Create driver
+    driver = f_config(path= chr_path, prf= chr_prf);
 
-        # Write data
-        f_write_data(path=wrt_path, file=wrt_file, mck= item["mck"], data= data);
+    #for item in link:
+        # wrt_file = item["mck"] + ".csv";
+    
+        # # Get data
+        # data = f_get_data( driver=driver, mck= item["mck"], url=item["url"], lpath= l_path );
 
+        # # Write data
+        # f_write_data(path=wrt_path, file=wrt_file, mck= item["mck"], data= data);
+
+        # Update file excel
+        #f_update_excel(path=e_path, sheet="MCK", mck= item["mck"]);
 if __name__ == "__main__":
     main();
